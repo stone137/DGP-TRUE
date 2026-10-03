@@ -8,7 +8,7 @@ import httpx
 def exchange(
     client: httpx.Client, method: str, path: str, token: str = "", body: object = None
 ) -> tuple[int, Any]:
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    headers = {"Authorization": f"Bearer {token}"} if token else {}  # 压行写法，三元表达式
     response = client.request(method, path, json=body, headers=headers)
     try:
         result = response.json()
@@ -40,13 +40,27 @@ def main() -> None:
                         "password": getpass.getpass("password: "),
                     }
                     method, path = "POST", "/users" if command == "register" else "/sessions"
-                elif command in ("ping", "logout", "list"):
+                elif command in (
+                    "ping",
+                    "logout",
+                    "list",
+                ):  # 检查command里的字符串存不存在这个元组里
                     method, path = {
                         "ping": ("GET", "/ping"),
                         "logout": ("DELETE", "/sessions/current"),
                         "list": ("GET", "/texts"),
-                    }[command]
-                elif command in ("echo", "delete-user", "put", "get", "delete"):
+                    }[command]  # `{...}[command]` 表示"从字典里取command这个键对应的值"。
+                elif command == "echo":  # 任务一：补全POST /echo
+                    print("Please enter the text (end with a ':' on its own line): ")
+                    text = ""
+                    while True:
+                        line = input()
+                        if line == ":":
+                            break
+                        text += line + "\n"  # 这个换行别忘加了
+                    body = {"text": text}
+                    method, path = "POST", "/echo"
+                elif command in ("delete-user", "put", "get", "delete"):  # 我应该增加的部分
                     print("This task is not implemented in the starting code yet.")
                     continue
                 else:
