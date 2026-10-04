@@ -76,8 +76,8 @@ def main() -> None:
                     body = None
                     method, path = "DELETE", f"/texts/{name}"
                 elif command == "delete-user":
-                    print("This task is not implemented in the starting code yet.")
-                    continue
+                    body = None
+                    method, path = "DELETE", "/users/me"
                 else:
                     print("Unknown command.")
                     continue
@@ -89,6 +89,8 @@ def main() -> None:
                     if status == 401:
                         print("Please log in again.")
                     if status == 401 or (command == "logout" and status == 200):
+                        token = ""
+                    if command == "delete-user" and status == 200:
                         token = ""
                 except (httpx.HTTPError, ValueError, KeyError) as exc:
                     print(f"Request failed: {exc}")
