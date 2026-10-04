@@ -58,6 +58,7 @@ def main() -> None:
                     method, path = "POST", "/echo"
                 elif command == "put":
                     name = input("name: ")
+                    print("Please enter the text (end with a ':' on its own line): ")
                     text = ""
                     while True:
                         line = input()
@@ -70,7 +71,11 @@ def main() -> None:
                     name = input("name: ")
                     body = None
                     method, path = "GET", f"/texts/{name}"
-                elif command in ("delete-user", "delete"):  # 我应该增加的部分
+                elif command == "delete":
+                    name = input("name: ")
+                    body = None
+                    method, path = "DELETE", f"/texts/{name}"
+                elif command == "delete-user":
                     print("This task is not implemented in the starting code yet.")
                     continue
                 else:
