@@ -21,9 +21,9 @@ def exchange(  # object是类型注释，表示body可以是任何类型
 
     try:  # 发送请求，尝试解析json（把json字符串转化为Python的字典、列表等对象）
         result = response.json()
-    except ValueError:  # 如果解析失败，把原始文本包装成{"message": ...} 
+    except ValueError:  # 如果解析失败，把原始文本包装成{"message": ...}
         result = {"message": response.text}
-    return response.status_code, result  #最后返回元组！
+    return response.status_code, result  # 最后返回元组！
 
 
 def main() -> None:
