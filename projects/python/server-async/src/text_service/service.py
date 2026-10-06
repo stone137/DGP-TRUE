@@ -23,7 +23,7 @@ ROUTES = (
 
 def route_error(method: str, path: str) -> int | None:  # 类型是int或None
     if path.startswith("/texts/") and len(path) > len("/texts/"):
-        return None if method in ("PUT", "GET") else 405
+        return None if method in ("PUT", "GET", "DELETE") else 405
     allowed = next((verb for verb, route in ROUTES if route == path), None)
     # next(): 取迭代器下一个元素，无则返回默认值
     # verb: 方法动词
@@ -160,7 +160,7 @@ class Service:
                     return 200, {"data": sorted(user.texts)}
                 if path.startswith("/texts/") and len(path) > len("/texts/"):
                     name = path[len("/texts/") :]
-                    if not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", name):
+                    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", name):
                         return 400, {"message": "Invalid text name!"}
                     if method == "PUT":
                         if set(body) != {"text"}:
@@ -174,8 +174,13 @@ class Service:
                         return 200, {"data": None}
                     if method == "GET":
                         if name not in user.texts:
-                            return 404, {"Message": "text not found"}
+                            return 404, {"message": "text not found"}
                         return 200, {"data": user.texts[name]}
+                    if method == "DELETE":
+                        if name not in user.texts:
+                            return 404, {"message": "text not found"}
+                        del user.texts[name]
+                        return 200, {"data": None}
         return 404, {"message": "Not found"}
 
 
