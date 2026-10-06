@@ -22,10 +22,12 @@ ROUTES = (
 
 
 def route_error(method: str, path: str) -> int | None:  # 类型是int或None
+    if path.startswith("/texts/") and len(path) > len("/texts/"):
+        return None if method in ("PUT", "GET") else 405
     allowed = next((verb for verb, route in ROUTES if route == path), None)
     # next(): 取迭代器下一个元素，无则返回默认值
     # verb: 方法动词
-    # verb / for verb, route in ROUTES / if route == path: 如果route为path, 返回route所在元组地verb
+    # verb / for verb, route in ROUTES / if route == path: 如果route为path, 返回route所在元组的verb
     if allowed is None:
         return 404
     return None if method == allowed else 405
@@ -133,7 +135,12 @@ class Service:
             if len(text.encode("utf-8")) > 65536:
                 return 413, {"message": "the text is too long"}
             return 200, {"data": text}
-        protected = path in ("/texts", "/sessions/current")
+        protected = (
+            path == "/texts"
+            or path == "/sessions/current"
+            or path.startswith("/texts/")
+            and len(path) > len("/texts/")
+        )
         if protected:
             token = (
                 authorization.removeprefix("Bearer ") if authorization.startswith("Bearer ") else ""
@@ -151,6 +158,24 @@ class Service:
                     return 200, {"data": None}
                 if path == "/texts" and method == "GET":
                     return 200, {"data": sorted(user.texts)}
+                if path.startswith("/texts/") and len(path) > len("/texts/"):
+                    name = path[len("/texts/") :]
+                    if not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", name):
+                        return 400, {"message": "Invalid text name!"}
+                    if method == "PUT":
+                        if set(body) != {"text"}:
+                            return 400, {"message": "expect only the text"}
+                        text = body["text"]
+                        if not isinstance(text, str):
+                            return 400, {"message": "the text must be a string"}
+                        if len(text.encode("utf-8")) > 65536:
+                            return 413, {"message": "the text is too long"}
+                        user.texts[name] = text
+                        return 200, {"data": None}
+                    if method == "GET":
+                        if name not in user.texts:
+                            return 404, {"Message": "text not found"}
+                        return 200, {"data": user.texts[name]}
         return 404, {"message": "Not found"}
 
 

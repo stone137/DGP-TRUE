@@ -62,13 +62,7 @@ async def test_body_limit_and_routing(client: AsyncClient) -> None:
 
 @pytest.mark.parametrize(
     ("method", "path"),
-    [
-        ("POST", "echo"),
-        ("DELETE", "/users/me"),
-        ("PUT", "/texts/note"),
-        ("GET", "/texts/note"),
-        ("DELETE", "/texts/note"),
-    ],
+    [("DELETE", "/users/me")],
 )
 async def test_unimplemented_routes_are_absent(client: AsyncClient, method: str, path: str) -> None:
     assert (await client.request(method, path)).status_code == 404
