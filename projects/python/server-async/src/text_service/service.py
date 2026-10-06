@@ -18,6 +18,7 @@ ROUTES = (
     ("DELETE", "/sessions/current"),
     ("GET", "/texts"),
     ("POST", "/echo"),
+    ("DELETE", "/users/me"),
 )
 
 
@@ -138,6 +139,7 @@ class Service:
         protected = (
             path == "/texts"
             or path == "/sessions/current"
+            or path == "/users/me"
             or path.startswith("/texts/")
             and len(path) > len("/texts/")
         )
@@ -179,8 +181,12 @@ class Service:
                     if method == "DELETE":
                         if name not in user.texts:
                             return 404, {"message": "text not found"}
-                        del user.texts[name]
                         return 200, {"data": None}
+                if path == "/users/me" and method == "DELETE":
+                    d_name = next((name for name, u in self.users.items() if u == user), None)
+                    if d_name:
+                        del self.users[d_name]
+                    return 200, {"data": None}
         return 404, {"message": "Not found"}
 
 

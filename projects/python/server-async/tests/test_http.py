@@ -60,14 +60,6 @@ async def test_body_limit_and_routing(client: AsyncClient) -> None:
     assert (await client.get("/ping?test=1")).json() == {"data": "pong"}
 
 
-@pytest.mark.parametrize(
-    ("method", "path"),
-    [("DELETE", "/users/me")],
-)
-async def test_unimplemented_routes_are_absent(client: AsyncClient, method: str, path: str) -> None:
-    assert (await client.request(method, path)).status_code == 404
-
-
 @pytest.mark.parametrize("path", ["/ping", "/users", "/sessions", "/sessions/current", "/texts"])
 async def test_wrong_method_precedes_authentication(client: AsyncClient, path: str) -> None:
     assert (await client.patch(path)).status_code == 405
