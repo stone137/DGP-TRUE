@@ -67,12 +67,13 @@ def main() -> None:
                     }[command]
                 elif command == "echo":
                     print("Please enter the text (end with a ':' on its own line): ")
-                    text = ""
+                    lines = []
                     while True:
                         line = input()
                         if line == ":":
                             break
-                        text += line + "\n"
+                        lines.append(line)
+                    text = "\n".join(lines)
                     body = {"text": text}
                     method, path = "POST", "/echo"
                 elif command == "put":
