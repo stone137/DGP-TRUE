@@ -55,7 +55,7 @@ async def test_body_limit_and_routing(client: AsyncClient) -> None:
     assert (await client.post("/users", content=exact)).status_code == 400
     assert (await client.post("/users", content=exact + b" ")).status_code == 413
     assert (await client.get("/missing")).status_code == 404
-    assert (await client.get("/echo")).status_code == 404
+    assert (await client.get("/echo")).status_code == 405
     assert (await client.patch("/ping")).status_code == 405
     assert (await client.get("/ping?test=1")).json() == {"data": "pong"}
 
@@ -63,7 +63,7 @@ async def test_body_limit_and_routing(client: AsyncClient) -> None:
 @pytest.mark.parametrize(
     ("method", "path"),
     [
-        ("POST", "/echo"),
+        ("POST", "echo"),
         ("DELETE", "/users/me"),
         ("PUT", "/texts/note"),
         ("GET", "/texts/note"),

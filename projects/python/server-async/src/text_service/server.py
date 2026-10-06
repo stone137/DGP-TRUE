@@ -64,7 +64,8 @@ def create_app() -> FastAPI:
             )
 
     @app.api_route(  # app.api_route: 注册支持多种HTTP方法的路由
-        "/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]
+        "/{path:path}",
+        methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
         # "/{path:path}": 路径模板，捕获全部子路径（含/）
     )  # 把所有路径，所有常见HTTP方法都路由到同一个处理函数
     async def dispatch(request: Request) -> JSONResponse:
@@ -78,7 +79,8 @@ def create_app() -> FastAPI:
             try:
                 body = json.loads(  # 解析字符串为Python对象
                     raw.decode("utf-8"),  # 字节转UTF-8字符串
-                    parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),  # 解析常量时的回调
+                    parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
+                    # 解析常量时的回调
                     # 用空生成器立即抛出ValueError结束json,loads函数
                 )
             except (ValueError, UnicodeError):
