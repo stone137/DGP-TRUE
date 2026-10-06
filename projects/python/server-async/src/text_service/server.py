@@ -30,10 +30,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     yield  # 暂停, 交出控制权
 
 
-def create_app() -> FastAPI:
+def create_app(token_ttl_seconds: int = 300) -> FastAPI:
     app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None, lifespan=lifespan)
     # FastAPI: 创建一个Web应用对象, 注册路由, 中间件和生命周期钩子, 作为ASGI应用被uvicorn驱动运行
-    service = Service()  # service是Service的一个实例
+    service = Service(token_ttl_seconds=token_ttl_seconds)  # service是Service的一个实例
 
     @app.middleware("http")  # 给FastAPI应用注册一个中间件, 用来拦截/处理每个HTTP请求
     # @: 装饰器标记, app: FastAPI应用实例, .middleware(): 注册HTTP中间件的方法, "http": 类型参数,
@@ -103,8 +103,15 @@ def main() -> None:
     parser = argparse.ArgumentParser()  # 创建命令行参数解析器
     parser.add_argument("--host", default="127.0.0.1")  # 添加--host参数，默认本地回环
     parser.add_argument("--port", type=int, default=7878)  # 添加--post参数（整型），默认7878
+    parser.add_argument("--token-ttl-seconds", type=int, default=300)
     args = parser.parse_args()  # 解析命令行得到参数对象
     if not 1 <= args.port <= 65535:  # 如果端口超出合法范围
         parser.error("port must be 1..65535")
-    uvicorn.run(create_app(), host=args.host, port=args.port, workers=1, access_log=False)
+    uvicorn.run(
+        create_app(token_ttl_seconds=args.token_ttl_seconds),
+        host=args.host,
+        port=args.port,
+        workers=1,
+        access_log=False,
+    )
     # 运行creat_app()返回的ASGI应用，绑定主机，绑定端口，单进程关闭uvicorn内置访问日志

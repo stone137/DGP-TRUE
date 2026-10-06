@@ -6,6 +6,7 @@ import hmac  # 基于哈希的消息认证码
 import re  # 正则表达式（从字符串里按规则查找/替换内容）
 import secrets  # 生成随机安全token, salt
 import threading  # 线程同步与锁（让程序并发执行任务，并提供锁避免竞态）
+import time
 from dataclasses import dataclass, field
 
 # 用装饰器自动生成类的__init__, __repr__等样板方法（示例的两个，分别用于初始化实例和定义打印输出格式）
@@ -43,6 +44,7 @@ class User:  # 自己创建一个类(数据类型)
     salt: bytes  # bytes: 不可变的二进制字节序列
     digest: bytes
     token: str | None = None  # token默认值是None(如果未传参就使用默认值)
+    token_expires_at: float | None = None
     texts: dict[str, str] = field(default_factory=dict)
     # text是个键和值都时字符串的字典, 默认值是一个空字典
     # 字段: 类中声明的变量, 对应实例的一个属性
@@ -52,12 +54,13 @@ class User:  # 自己创建一个类(数据类型)
 
 
 class Service:
-    def __init__(self) -> None:
+    def __init__(self, token_ttl_seconds=300) -> None:  # ttl全称：time to live
         # 自定义初始化逻辑, @dataclass中生成的默认配置无法满足(self开始出现的地方!!!)
         self.users: dict[str, User] = {}
         # 保存用户信息的字典, 初始为空
         self.lock = threading.Lock()
         # 线程锁, 保护users的并发访问
+        self.token_ttl_seconds = token_ttl_seconds
 
     def handle(
         self,
@@ -124,9 +127,11 @@ class Service:
                     return 401, {"message": "Invalid username or password"}
                 user.token = secrets.token_urlsafe(32)
                 # 生成32字节的URL安全随机字符串, 赋值给user.token
+                user.token_expires_at = time.monotonic() + self.token_ttl_seconds
+                # time.monotonic(): 返回一个单调递增的秒数，用来测量经过了多少时间（永远单增，每次调用不会被初始化）
                 # Later server task: record a deadline and return expires_in.
                 # 翻译: 后续服务端任务: 记录过期时间并返回expires_in
-                return 200, {"data": {"token": user.token}}
+                return 200, {"data": {"token": user.token, "expires_in": self.token_ttl_seconds}}
         if method == "POST" and path == "/echo":
             if set(body) != {"text"}:  # 检查多余或缺失
                 return 400, {"message": "expect only the text"}
@@ -153,10 +158,13 @@ class Service:
                 # 如果有token, 查找self.users.values()里面有没有刚刚的token, 如果有的话就把user赋值为token, 否则为None
                 if user is None:
                     return 401, {"message": "Login required"}
+                if user.token_expires_at != None and time.monotonic() >= user.token_expires_at:
+                    return 401, {"message": "Token expired"}
                 # Later server task: check token expiry here, before reading or modifying state.
                 # 翻译: 后续服务端任务: 在读写或修改状态前, 先检查token是否过期
                 if path == "/sessions/current" and method == "DELETE":
                     user.token = None
+                    user.token_expires_at = None
                     return 200, {"data": None}
                 if path == "/texts" and method == "GET":
                     return 200, {"data": sorted(user.texts)}
