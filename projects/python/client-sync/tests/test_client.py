@@ -28,12 +28,32 @@ def test_request() -> None:
 def test_echo() -> None:
     def respond(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/echo"
-        return httpx.Response(200, json={"data": []})
+        return httpx.Response(200, json={"data": "what i want to echo"})
 
     with httpx.Client(
         base_url="http://localhost", transport=httpx.MockTransport(respond)
     ) as client:
-        assert exchange(client, "POST", "/echo", "") == (200, {"data": []})
+        assert exchange(client, "POST", "/echo", "") == (200, {"data": "what i want to echo"})
+
+
+def test_task3() -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/texts/note"
+        assert request.headers["Authorization"] == "Bearer example"
+        return (
+            httpx.Response(200, json={"data": None})
+            if request.method == "PUT"
+            else httpx.Response(200, json={"data": "y = x"})
+        )
+
+    with httpx.Client(
+        base_url="http://localhost", transport=httpx.MockTransport(respond)
+    ) as client:
+        assert exchange(client, "PUT", "/texts/note", "example", {"text": "y = x"}) == (
+            200,
+            {"data": None},
+        )
+        assert exchange(client, "GET", "/texts/note", "example") == (200, {"data": "y = x"})
 
 
 def test_401_response() -> None:
