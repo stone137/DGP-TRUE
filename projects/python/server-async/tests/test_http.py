@@ -83,6 +83,25 @@ async def test_http_routes(client: AsyncClient) -> None:
             # 提交过大字节
         )
     ).status_code == 413
+    response = await client.delete("/sessions/current")
+
+    # 任务四测试
+    response = await client.post("/users", json={"username": "bob", "password": "password1"})
+    response = await client.post("/sessions", json={"username": "bob", "password": "password1"})
+    token2 = response.json()["data"]["token"]
+    response = await client.put(
+        "/texts/note", json={"text": "bob"}, headers={"Authorization": f"Bearer {token2}"}
+    )
+    assert (
+        await client.get("/texts/note", headers={"Authorization": f"Bearer {token2}"})
+    ).json() == {"data": "bob"}
+    await client.delete("/texts/note", headers={"Authorization": f"Bearer {token2}"})
+    assert (await client.get("/texts", headers={"Authorization": f"Bearer {token}"})).json() == {
+        "data": ["note"]
+    }
+    assert (
+        await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
+    ).json() == {"data": "alice2"}
 
 
 # 验证服务器对非法JSON（普通错误，\xff编码错误，NaN非法常量）一律返回400
