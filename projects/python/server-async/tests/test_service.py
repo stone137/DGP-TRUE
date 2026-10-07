@@ -111,3 +111,42 @@ def test_task6() -> None:
     token3 = service.handle("POST", "/sessions", account, "")[1]["data"]["token"]
     assert service.handle("DELETE", "/users/me", None, f"Bearer {token3}")[0] == 200
     assert service.handle("GET", "/texts", None, f"Bearer {token3}")[0] == 401  # 注销能够撤销令牌
+
+
+def test_task7() -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    service = Service()
+    account = {"username": "alice", "password": "password1"}
+    service.handle("POST", "/users", account, "")
+
+    # 文本操作与登录替换竞争时的状态一致性
+    token = service.handle("POST", "/sessions", account, "")[1]["data"]["token"]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        pool.submit(service.handle, "PUT", "/texts/note", {"text": "x"}, f"Bearer {token}")
+        pool.submit(service.handle, "POST", "/sessions", account, "")
+
+    new_token = service.handle("POST", "/sessions", account, "")[1]["data"]["token"]
+    assert service.handle("GET", "/texts/note", None, f"Bearer {new_token}") in (
+        (200, {"data": "x"}),
+        (404, {"message": "text not found"}),
+    )
+
+    # 文本操作与注销竞争时的状态一致性
+    token2 = service.handle("POST", "/sessions", account, "")[1]["data"]["token"]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        pool.submit(service.handle, "PUT", "/texts/note", {"text": "x"}, f"Bearer {token2}")
+        pool.submit(service.handle, "DELETE", "/users/me", None, f"Bearer {token2}")
+
+    assert service.handle("GET", "/texts/note", None, f"Bearer {token2}")[0] == 401
+    assert service.handle("POST", "/sessions", account, "")[0] == 401
+
+    # 单个请求失败后，业务仍能正常进行
+    service.handle("POST", "/users", account, "")
+    token3 = service.handle("POST", "/sessions", account, "")[1]["data"]["token"]
+    service.handle("PATCH", "/ping", None, "")
+    service.handle("GET", "/nope", None, "")
+    service.handle("PUT", "/texts/note", {"wrong": "field"}, f"Bearer {token3}")
+    service.handle("PUT", "/texts/bad/name", {"text": "x"}, f"Bearer {token3}")
+    assert service.handle("PUT", "/texts/note", {"text": "hi"}, f"Bearer {token3}")[0] == 200
+    assert service.handle("GET", "/texts/note", None, f"Bearer {token3}") == (200, {"data": "hi"})
