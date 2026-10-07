@@ -191,6 +191,7 @@ class Service:
                     if method == "DELETE":
                         if name not in user.texts:
                             return 404, {"message": "text not found"}
+                        del user.texts[name]
                         return 200, {"data": None}
                 if path == "/users/me" and method == "DELETE":
                     d_name = next((name for name, u in self.users.items() if u == user), None)
