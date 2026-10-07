@@ -32,6 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 def create_app(token_ttl_seconds: int = 300) -> FastAPI:
     app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None, lifespan=lifespan)
+    # app: FastAPI应用实例。承载路由、中间体、生命周期等配置，是ASGI服务器驱动的对象
     # FastAPI: 创建一个Web应用对象, 注册路由, 中间件和生命周期钩子, 作为ASGI应用被uvicorn驱动运行
     service = Service(token_ttl_seconds=token_ttl_seconds)  # service是Service的一个实例
 

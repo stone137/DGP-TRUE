@@ -1,26 +1,29 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator  # 导入异步生成器类型
 
-import pytest
-from httpx2 import ASGITransport, AsyncClient
+import pytest  # 测试框架
+from httpx2 import ASGITransport, AsyncClient  # 导入httpx2的ASGI传输与异步客户端
 
-from text_service.server import create_app
+from text_service.server import create_app  # 导入另外一个文件的create_app函数
 
 pytestmark = pytest.mark.anyio
+# 告诉测试运行器：这个测试是异步的，用异步方式跑
 
 
-@pytest.fixture
+@pytest.fixture  # 测试的“准备工作”工具。需要什么就在这里造好，测试用完自动清理
 def anyio_backend() -> str:
     return "asyncio"
+# 指定异步测试运行在asyncio上
 
 
 @pytest.fixture
-async def client() -> AsyncGenerator[AsyncClient]:
-    app = create_app()
-    async with (
-        app.router.lifespan_context(app),
+async def client() -> AsyncGenerator[AsyncClient]:  # 异步产出AsyncClient
+    app = create_app()  # 创建被测服务端（被测对象）
+    async with (  # 组合多个异步上下文
+        app.router.lifespan_context(app),  # 手动启动lifespan
         AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client,
+        # 用ASGI直驱的HTTP客户端
     ):
-        yield client
+        yield client  # 把客户端交给测试函数
 
 
 async def test_http_routes(client: AsyncClient) -> None:
@@ -28,38 +31,44 @@ async def test_http_routes(client: AsyncClient) -> None:
     response = await client.post("/users", json={"username": "alice", "password": "password1"})
     assert response.status_code == 201
     response = await client.post("/sessions", json={"username": "alice", "password": "password1"})
-    token = response.json()["data"]["token"]
+    token = response.json()["data"]["token"]  # 从响应JSON取token
     assert (
         await client.get("/texts", headers={"Authorization": f"Bearer {token}"})
-    ).status_code == 200
-    assert (await client.get("/texts")).status_code == 401
+    ).status_code == 200  # 带token访问，状态码200
+    assert (await client.get("/texts")).status_code == 401  # 无token访问，状态码401
     assert (
         await client.post(
             "/users", content=b"not JSON", headers={"Content-Type": "application/json"}
+            # b：表示这是一个字节串（bytes字面量前缀）
+            # 提交非JSON字节（headers这么设置是为了让服务端按JSON解析路径处理，从而触发校验失败）
         )
     ).status_code == 400
     assert (
         await client.post(
             "/users", content=b"x" * 524289, headers={"Content-Type": "application/json"}
+            # 提交过大字节
         )
     ).status_code == 413
 
-
+# 验证服务器对非法JSON（普通错误，\xff编码错误，NaN非法常量）一律返回400
 @pytest.mark.parametrize("body", [b"not JSON", b"\xff", b"NaN"])
+# 参数化：分别用这三种字节作body
 async def test_invalid_json(client: AsyncClient, body: bytes) -> None:
+    # 异步测试，接受客户端与body
     assert (await client.post("/users", content=body)).status_code == 400
 
-
+# 验证body大小边界，404/405路由与方法处理、以及查询参数不影响响应
 async def test_body_limit_and_routing(client: AsyncClient) -> None:
-    exact = b"{}" + b" " * (524288 - 2)
-    assert (await client.post("/users", content=exact)).status_code == 400
-    assert (await client.post("/users", content=exact + b" ")).status_code == 413
-    assert (await client.get("/missing")).status_code == 404
-    assert (await client.get("/echo")).status_code == 405
+    exact = b"{}" + b" " * (524288 - 2)  # 正好52488字节，但是只含空格
+    assert (await client.post("/users", content=exact)).status_code == 400  # 只含空格返回400
+    assert (await client.post("/users", content=exact + b" ")).status_code == 413  # 过大返回413
+    assert (await client.get("/missing")).status_code == 404  # 路径不存在
+    assert (await client.get("/echo")).status_code == 405  # 方法不允许
     assert (await client.patch("/ping")).status_code == 405
-    assert (await client.get("/ping?test=1")).json() == {"data": "pong"}
+    assert (await client.get("/ping?test=1")).json() == {"data": "pong"}  # 查询参数不影响响应
 
-
+# 验证方法不匹配优先于鉴权
 @pytest.mark.parametrize("path", ["/ping", "/users", "/sessions", "/sessions/current", "/texts"])
+# 参数化，依次用这五个路径
 async def test_wrong_method_precedes_authentication(client: AsyncClient, path: str) -> None:
-    assert (await client.patch(path)).status_code == 405
+    assert (await client.patch(path)).status_code == 405  # patch（局部更新资源，不存在这个方法）这些路径都应405
