@@ -1,3 +1,5 @@
+import json
+
 import httpx
 
 from text_service.client import exchange
@@ -25,7 +27,7 @@ def test_request() -> None:
         # 上下都是“example”，保持一致
 
 
-def test_echo() -> None:
+def test_task2() -> None:
     def respond(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/echo"
         return httpx.Response(200, json={"data": "what i want to echo"})
@@ -37,14 +39,15 @@ def test_echo() -> None:
 
 
 def test_task3() -> None:
+    texts: dict[str, str] = {}
+
     def respond(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/texts/note"
         assert request.headers["Authorization"] == "Bearer example"
-        return (
-            httpx.Response(200, json={"data": None})
-            if request.method == "PUT"
-            else httpx.Response(200, json={"data": "y = x"})
-        )
+        if request.method == "PUT":
+            texts["note"] = json.loads(request.content)["text"]
+            return httpx.Response(200, json={"data": None})
+        return httpx.Response(200, json={"data": texts["note"]})
 
     with httpx.Client(
         base_url="http://localhost", transport=httpx.MockTransport(respond)
@@ -54,6 +57,11 @@ def test_task3() -> None:
             {"data": None},
         )
         assert exchange(client, "GET", "/texts/note", "example") == (200, {"data": "y = x"})
+        assert exchange(client, "PUT", "/texts/note", "example", {"text": "new text"}) == (
+            200,
+            {"data": None},
+        )
+        assert exchange(client, "GET", "/texts/note", "example") == (200, {"data": "new text"})
 
 
 def test_task4() -> None:
@@ -126,7 +134,7 @@ def test_task5() -> None:
 
 
 def test_task6() -> None:
-    # 错误体确实或不是json仍能显示 HTTP 状态
+    # 错误体缺失或不是json仍能显示 HTTP 状态
     def respond(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/texts":
             return httpx.Response(404, text="I'm not json hahahahahaha")
