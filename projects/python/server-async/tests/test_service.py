@@ -64,6 +64,6 @@ def test_echo() -> None:
     for body in (
         {},  # 缺字段
         {"text": "你好\nRM", "extra": "this is a test"},  # 多余字段
-        {"text": 123}
+        {"text": 123},
     ):
         assert service.handle("POST", "/echo", body, "")[0] == 400

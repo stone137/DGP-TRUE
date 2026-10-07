@@ -42,6 +42,29 @@ async def test_http_routes(client: AsyncClient) -> None:
     assert (
         await client.get("/texts", headers={"Authorization": f"Bearer {token}"})
     ).status_code == 200  # 带token访问，状态码200
+    # 确认读取相同
+    response = await client.put(
+        "/texts/note", json={"text": "alice"}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert (
+        await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
+    ).status_code == 200
+    assert (
+        await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
+    ).json() == {"data": "alice"}
+    # 确认正常覆盖
+    response = await client.put(
+        "/texts/note", json={"text": "alice2"}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert (
+        await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
+    ).status_code == 200
+    assert (
+        await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
+    ).json() == {"data": "alice2"}
+    assert (
+        await client.get("/texts/note_missing", headers={"Authorization": f"Bearer {token}"})
+    ).status_code == 404  # 不存在的文本返回404
     assert (await client.get("/texts")).status_code == 401  # 无token访问，状态码401
     assert (
         await client.post(
