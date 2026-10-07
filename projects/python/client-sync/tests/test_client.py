@@ -101,7 +101,7 @@ def test_task5() -> None:
             return httpx.Response(200, json={"data": None})
         if request.method == "POST" and request.url.path == "/sessions":
             valid_token["token"] = "example2"
-            return httpx.Response(200, json={"data": "example2"})
+            return httpx.Response(200, json={"data": {"token": "example2", "expires_in": 300}})
         if request.method == "GET" and request.url.path == "/texts":
             if valid_token:
                 if valid_token["token"] == "example":
@@ -119,19 +119,24 @@ def test_task5() -> None:
             401,
             {"message": "Please log in again"},
         )
-        assert exchange(client, "POST", "/sessions", "") == (200, {"data": "example2"})
-        assert exchange(client, "GET", "/texts", "example2") == (200, {"data": []})
+        new_token = exchange(
+            client, "POST", "/sessions", "", {"username": "alice", "password": "password1"}
+        )[1]["data"]["token"]
+        assert exchange(client, "GET", "/texts", new_token) == (200, {"data": []})
 
 
 def test_task6() -> None:
     # 错误体确实或不是json仍能显示 HTTP 状态
     def respond(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/texts":
-            return httpx.Response(404, json="I'm not json hahahahahaha")
-        return httpx.Response(404, json="")
+            return httpx.Response(404, text="I'm not json hahahahahaha")
+        return httpx.Response(404, text="")
 
     with httpx.Client(
         base_url="http://localhost", transport=httpx.MockTransport(respond)
     ) as client:
-        assert exchange(client, "PUT", "/texts/notes", "example") == (404, "")
-        assert exchange(client, "GET", "/texts", "") == (404, "I'm not json hahahahahaha")
+        assert exchange(client, "PUT", "/texts/notes", "example") == (404, {"message": ""})
+        assert exchange(client, "GET", "/texts", "") == (
+            404,
+            {"message": "I'm not json hahahahahaha"},
+        )
