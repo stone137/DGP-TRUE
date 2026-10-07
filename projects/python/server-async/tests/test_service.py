@@ -67,3 +67,23 @@ def test_echo() -> None:
         {"text": 123},
     ):
         assert service.handle("POST", "/echo", body, "")[0] == 400
+
+
+def test_task5() -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    service = Service()
+    account = {"username": "alice", "password": "password1"}
+    assert service.handle("POST", "/users", account, "")[0] == 201
+    token = service.handle("POST", "/sessions", account, "")[1]["data"]["token"]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        delete = pool.submit(service.handle, "DELETE", "/users/me", None, f"Bearer {token}")
+        write = pool.submit(service.handle, "PUT", "/texts/note", {"text": "x"}, f"Bearer {token}")
+        assert delete.result()[0] == 200
+        assert write.result()[0] == 401
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        old_login = pool.submit(service.handle, "POST", "/sessions", account, "")
+        pool.submit(service.handle, "DELETE", "/users/me", None, f"Bearer {token}")
+        pool.submit(service.handle, "POST", "/users", account, "")
+        assert old_login.result()[0] == 401

@@ -103,6 +103,15 @@ async def test_http_routes(client: AsyncClient) -> None:
         await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
     ).json() == {"data": "alice2"}
 
+    # 任务五测试
+    await client.delete("/users/me", headers={"Authorization": f"Bearer {token}"})
+    await client.post("/users", json={"username": "alice", "password": "password1"})
+    response = await client.post("/sessions", json={"username": "alice", "password": "password1"})
+    token = response.json()["data"]["token"]
+    assert (await client.get("/texts", headers={"Authorization": f"Bearer {token}"})).json() == {
+        "data": []
+    }
+
 
 # 验证服务器对非法JSON（普通错误，\xff编码错误，NaN非法常量）一律返回400
 @pytest.mark.parametrize("body", [b"not JSON", b"\xff", b"NaN"])
