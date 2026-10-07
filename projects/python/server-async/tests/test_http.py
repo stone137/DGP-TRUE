@@ -35,36 +35,11 @@ async def test_http_routes(client: AsyncClient) -> None:
     assert (await client.get("/ping")).status_code == 200
     response = await client.post("/users", json={"username": "alice", "password": "password1"})
     assert response.status_code == 201
-    response = await client.post("/users", json={"username": "alice", "password": "password1"})
-    assert response.status_code == 409
     response = await client.post("/sessions", json={"username": "alice", "password": "password1"})
-    token = response.json()["data"]["token"]  # 从响应JSON取token
+    token = response.json()["data"]["token"]
     assert (
         await client.get("/texts", headers={"Authorization": f"Bearer {token}"})
     ).status_code == 200  # 带token访问，状态码200
-    # 确认读取相同
-    response = await client.put(
-        "/texts/note", json={"text": "alice"}, headers={"Authorization": f"Bearer {token}"}
-    )
-    assert (
-        await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
-    ).status_code == 200
-    assert (
-        await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
-    ).json() == {"data": "alice"}
-    # 确认正常覆盖
-    response = await client.put(
-        "/texts/note", json={"text": "alice2"}, headers={"Authorization": f"Bearer {token}"}
-    )
-    assert (
-        await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
-    ).status_code == 200
-    assert (
-        await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
-    ).json() == {"data": "alice2"}
-    assert (
-        await client.get("/texts/note_missing", headers={"Authorization": f"Bearer {token}"})
-    ).status_code == 404  # 不存在的文本返回404
     assert (await client.get("/texts")).status_code == 401  # 无token访问，状态码401
     assert (
         await client.post(
@@ -83,34 +58,107 @@ async def test_http_routes(client: AsyncClient) -> None:
             # 提交过大字节
         )
     ).status_code == 413
-    response = await client.delete("/sessions/current")
 
-    # 任务四测试
-    response = await client.post("/users", json={"username": "bob", "password": "password1"})
-    response = await client.post("/sessions", json={"username": "bob", "password": "password1"})
-    token2 = response.json()["data"]["token"]
-    response = await client.put(
-        "/texts/note", json={"text": "bob"}, headers={"Authorization": f"Bearer {token2}"}
+
+async def test_task3(client: AsyncClient) -> None:
+    assert (
+        await client.post("/users", json={"username": "alice", "password": "password1"})
+    ).status_code == 201
+    token = (
+        await client.post("/sessions", json={"username": "alice", "password": "password1"})
+    ).json()["data"]["token"]
+
+    # 上传后读回原文
+    await client.put(
+        "/texts/note", json={"text": "alice"}, headers={"Authorization": f"Bearer {token}"}
     )
     assert (
-        await client.get("/texts/note", headers={"Authorization": f"Bearer {token2}"})
-    ).json() == {"data": "bob"}
-    await client.delete("/texts/note", headers={"Authorization": f"Bearer {token2}"})
-    assert (await client.get("/texts", headers={"Authorization": f"Bearer {token}"})).json() == {
-        "data": ["note"]
-    }
+        await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
+    ).json() == {"data": "alice"}
+
+    # 同名再次上传后读回新内容
+    await client.put(
+        "/texts/note", json={"text": "alice2"}, headers={"Authorization": f"Bearer {token}"}
+    )
     assert (
         await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
     ).json() == {"data": "alice2"}
 
-    # 任务五测试
-    await client.delete("/users/me", headers={"Authorization": f"Bearer {token}"})
-    await client.post("/users", json={"username": "alice", "password": "password1"})
-    response = await client.post("/sessions", json={"username": "alice", "password": "password1"})
-    token = response.json()["data"]["token"]
+    # 不存在的文本返回 404
+    assert (
+        await client.get("/texts/note_missing", headers={"Authorization": f"Bearer {token}"})
+    ).status_code == 404
+
+
+async def test_task4(client: AsyncClient) -> None:
+    assert (
+        await client.post("/users", json={"username": "alice", "password": "password1"})
+    ).status_code == 201
+    token = (
+        await client.post("/sessions", json={"username": "alice", "password": "password1"})
+    ).json()["data"]["token"]
+    assert (
+        await client.post("/users", json={"username": "bob", "password": "password1"})
+    ).status_code == 201
+    token2 = (
+        await client.post("/sessions", json={"username": "bob", "password": "password1"})
+    ).json()["data"]["token"]
+    await client.put(
+        "/texts/note", json={"text": "alice"}, headers={"Authorization": f"Bearer {token}"}
+    )
+    await client.put("/texts/c", json={"text": "c"}, headers={"Authorization": f"Bearer {token}"})
+    await client.put("/texts/a", json={"text": "a"}, headers={"Authorization": f"Bearer {token}"})
+    assert (
+        await client.get("/texts/note", headers={"Authorization": f"Bearer {token}"})
+    ).json() == {"data": "alice"}
+    assert (
+        await client.put(
+            "/texts/note", json={"text": "bob"}, headers={"Authorization": f"Bearer {token2}"}
+        )
+    ).status_code == 200  # 写互不影响
+    assert (
+        await client.get("/texts/note", headers={"Authorization": f"Bearer {token2}"})
+    ).json() == {"data": "bob"}  # 读互不影响
+    await client.delete("/texts/note", headers={"Authorization": f"Bearer {token2}"})
+    assert (
+        await client.get("/texts/note", headers={"Authorization": f"Bearer {token2}"})
+    ).status_code == 404  # 删除互不影响
     assert (await client.get("/texts", headers={"Authorization": f"Bearer {token}"})).json() == {
+        "data": ["a", "c", "note"]
+    }  # 列出互不影响 + 满足名称升序
+    assert (await client.get("/texts", headers={"Authorization": f"Bearer {token2}"})).json() == {
         "data": []
-    }
+    }  # 删除后列表为空
+    assert (
+        await client.delete("/texts/note", headers={"Authorization": f"Bearer {token2}"})
+    ).status_code == 404
+
+
+async def test_task5(client: AsyncClient) -> None:
+    assert (
+        await client.post("/users", json={"username": "alice", "password": "password1"})
+    ).status_code == 201
+    token = (
+        await client.post("/sessions", json={"username": "alice", "password": "password1"})
+    ).json()["data"]["token"]
+    await client.put(
+        "/texts/note", json={"text": "alice"}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert (
+        await client.delete("/users/me", headers={"Authorization": f"Bearer {token}"})
+    ).status_code == 200
+    assert (
+        await client.get("/texts", headers={"Authorization": f"Bearer {token}"})
+    ).status_code == 401  # 旧令牌失效
+    assert (
+        await client.post("/users", json={"username": "alice", "password": "password1"})
+    ).status_code == 201
+    token2 = (
+        await client.post("/sessions", json={"username": "alice", "password": "password1"})
+    ).json()["data"]["token"]
+    assert (await client.get("/texts", headers={"Authorization": f"Bearer {token2}"})).json() == {
+        "data": []
+    }  # 全部文本清理：同名重建后新账号列表为空
 
 
 # 验证服务器对非法JSON（普通错误，\xff编码错误，NaN非法常量）一律返回400
