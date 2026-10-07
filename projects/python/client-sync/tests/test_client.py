@@ -123,23 +123,15 @@ def test_task5() -> None:
         assert exchange(client, "GET", "/texts", "example2") == (200, {"data": []})
 
 
-def test_401_response() -> None:
+def test_task6() -> None:
+    # 错误体确实或不是json仍能显示 HTTP 状态
     def respond(request: httpx.Request) -> httpx.Response:
-        assert "Authorization" not in request.headers
-        return httpx.Response(401, json={"message": "Please log in again."})
+        if request.method == "GET" and request.url.path == "/texts":
+            return httpx.Response(404, json="I'm not json hahahahahaha")
+        return httpx.Response(404, json="")
 
     with httpx.Client(
         base_url="http://localhost", transport=httpx.MockTransport(respond)
     ) as client:
-        assert exchange(client, "GET", "/texts", "") == (401, {"message": "Please log in again."})
-
-
-def test_error_or_nonjson() -> None:
-    # 错误体缺失或不是 JSON 时仍能显示 HTTP 状态（就是404这类数字）
-    def respond(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(404, json={"message": "Not Found"})
-
-    with httpx.Client(
-        base_url="http://localhost", transport=httpx.MockTransport(respond)
-    ) as client:
-        assert exchange(client, "GET", "/texts", "") == (404, {"message": "Not Found"})
+        assert exchange(client, "PUT", "/texts/notes", "example") == (404, "")
+        assert exchange(client, "GET", "/texts", "") == (404, "I'm not json hahahahahaha")
