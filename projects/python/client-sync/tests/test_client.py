@@ -56,6 +56,39 @@ def test_task3() -> None:
         assert exchange(client, "GET", "/texts/note", "example") == (200, {"data": "y = x"})
 
 
+def test_task4() -> None:
+    texts: dict[str, str] = {"b": "y", "a": "x", "c": "z"}
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "Bearer example"
+        if request.method == "GET" and request.url.path == "/texts":
+            return httpx.Response(200, json={"data": sorted(texts)})
+        name = request.url.path.removeprefix("/texts/")
+        if name not in texts:
+            return httpx.Response(404, json={"message": "text not found"})
+        if request.method == "DELETE":
+            del texts[name]
+            return httpx.Response(200, json={"data": None})
+        if request.method == "GET":
+            return httpx.Response(200, json={"data": texts[name]})
+        return httpx.Response(404, json={"message": "Not found"})
+
+    with httpx.Client(
+        base_url="http://localhost", transport=httpx.MockTransport(respond)
+    ) as client:
+        assert exchange(client, "GET", "/texts", "example") == (200, {"data": ["a", "b", "c"]})
+        assert exchange(client, "DELETE", "/texts/b", "example") == (200, {"data": None})
+        assert exchange(client, "GET", "/texts", "example") == (200, {"data": ["a", "c"]})
+        assert exchange(client, "DELETE", "/texts/missing", "example") == (
+            404,
+            {"message": "text not found"},
+        )
+        assert exchange(client, "GET", "/texts/missing", "example") == (
+            404,
+            {"message": "text not found"},
+        )
+
+
 def test_401_response() -> None:
     def respond(request: httpx.Request) -> httpx.Response:
         assert "Authorization" not in request.headers
