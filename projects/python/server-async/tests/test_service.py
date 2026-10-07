@@ -59,14 +59,15 @@ def test_concurrent_registration() -> (
     assert sorted(statuses) == [201, 409, 409, 409]
 
 
-def test_echo() -> None:
+def test_task2() -> None:
     service = Service()
     for body in (
         {},  # 缺字段
         {"text": "你好\nRM", "extra": "this is a test"},  # 多余字段
-        {"text": 123},
+        {"text": 123},  # 错误类型
     ):
         assert service.handle("POST", "/echo", body, "")[0] == 400
+    assert service.handle("POST", "/echo", {"text": "x" * 65537}, "")[0] == 413
 
 
 def test_task5() -> None:
