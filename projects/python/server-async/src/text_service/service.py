@@ -54,7 +54,7 @@ class User:  # 自己创建一个类(数据类型)
 
 
 class Service:
-    def __init__(self, token_ttl_seconds=300) -> None:  # ttl全称：time to live
+    def __init__(self, token_ttl_seconds: int = 300) -> None:  # ttl全称：time to live
         # 自定义初始化逻辑, @dataclass中生成的默认配置无法满足(self开始出现的地方!!!)
         self.users: dict[str, User] = {}
         # 保存用户信息的字典, 初始为空
@@ -133,6 +133,8 @@ class Service:
                 # 翻译: 后续服务端任务: 记录过期时间并返回expires_in
                 return 200, {"data": {"token": user.token, "expires_in": self.token_ttl_seconds}}
         if method == "POST" and path == "/echo":
+            if not isinstance(body, dict):
+                return 400, {"message": "expect json object"}
             if set(body) != {"text"}:  # 检查多余或缺失
                 return 400, {"message": "expect only the text"}
             text = body["text"]

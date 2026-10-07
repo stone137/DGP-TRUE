@@ -1,3 +1,5 @@
+"""发HTTP请求, 看看服务端返回的对不对"""
+
 from collections.abc import AsyncGenerator  # 导入异步生成器类型
 
 import pytest  # 测试框架
@@ -12,6 +14,8 @@ pytestmark = pytest.mark.anyio
 @pytest.fixture  # 测试的“准备工作”工具。需要什么就在这里造好，测试用完自动清理
 def anyio_backend() -> str:
     return "asyncio"
+
+
 # 指定异步测试运行在asyncio上
 
 
@@ -26,6 +30,7 @@ async def client() -> AsyncGenerator[AsyncClient]:  # 异步产出AsyncClient
         yield client  # 把客户端交给测试函数
 
 
+# 验证HTTP路由行为
 async def test_http_routes(client: AsyncClient) -> None:
     assert (await client.get("/ping")).status_code == 200
     response = await client.post("/users", json={"username": "alice", "password": "password1"})
@@ -38,17 +43,22 @@ async def test_http_routes(client: AsyncClient) -> None:
     assert (await client.get("/texts")).status_code == 401  # 无token访问，状态码401
     assert (
         await client.post(
-            "/users", content=b"not JSON", headers={"Content-Type": "application/json"}
+            "/users",
+            content=b"not JSON",
+            headers={"Content-Type": "application/json"},
             # b：表示这是一个字节串（bytes字面量前缀）
             # 提交非JSON字节（headers这么设置是为了让服务端按JSON解析路径处理，从而触发校验失败）
         )
     ).status_code == 400
     assert (
         await client.post(
-            "/users", content=b"x" * 524289, headers={"Content-Type": "application/json"}
+            "/users",
+            content=b"x" * 524289,
+            headers={"Content-Type": "application/json"},
             # 提交过大字节
         )
     ).status_code == 413
+
 
 # 验证服务器对非法JSON（普通错误，\xff编码错误，NaN非法常量）一律返回400
 @pytest.mark.parametrize("body", [b"not JSON", b"\xff", b"NaN"])
@@ -56,6 +66,7 @@ async def test_http_routes(client: AsyncClient) -> None:
 async def test_invalid_json(client: AsyncClient, body: bytes) -> None:
     # 异步测试，接受客户端与body
     assert (await client.post("/users", content=body)).status_code == 400
+
 
 # 验证body大小边界，404/405路由与方法处理、以及查询参数不影响响应
 async def test_body_limit_and_routing(client: AsyncClient) -> None:
@@ -67,8 +78,11 @@ async def test_body_limit_and_routing(client: AsyncClient) -> None:
     assert (await client.patch("/ping")).status_code == 405
     assert (await client.get("/ping?test=1")).json() == {"data": "pong"}  # 查询参数不影响响应
 
+
 # 验证方法不匹配优先于鉴权
 @pytest.mark.parametrize("path", ["/ping", "/users", "/sessions", "/sessions/current", "/texts"])
 # 参数化，依次用这五个路径
 async def test_wrong_method_precedes_authentication(client: AsyncClient, path: str) -> None:
-    assert (await client.patch(path)).status_code == 405  # patch（局部更新资源，不存在这个方法）这些路径都应405
+    assert (
+        await client.patch(path)
+    ).status_code == 405  # patch（局部更新资源，不存在这个方法）这些路径都应405
