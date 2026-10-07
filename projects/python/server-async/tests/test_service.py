@@ -87,3 +87,27 @@ def test_task5() -> None:
         pool.submit(service.handle, "DELETE", "/users/me", None, f"Bearer {token}")
         pool.submit(service.handle, "POST", "/users", account, "")
         assert old_login.result()[0] == 401
+
+
+def test_task6() -> None:
+    from time import sleep
+
+    service = Service(token_ttl_seconds=1)
+    account = {"username": "alice", "password": "password1"}
+    assert service.handle("POST", "/users", account, "")[0] == 201
+    token = service.handle("POST", "/sessions", account, "")[1]["data"]["token"]
+
+    sleep(1.1)
+    assert service.handle("GET", "/texts", None, f"Bearer {token}")[0] == 401
+    assert service.handle("GET", "/texts", None, f"Bearer {token}")[0] == 401  # 操作不续期
+    new_token = service.handle("POST", "/sessions", account, "")[1]["data"]["token"]
+    assert new_token != token  # 重新登录替换令牌
+
+    assert service.handle("DELETE", "/sessions/current", None, f"Bearer {new_token}")[0] == 200
+    assert (
+        service.handle("GET", "/texts", None, f"Bearer {new_token}")[0] == 401
+    )  # 退出能够撤销令牌
+
+    token3 = service.handle("POST", "/sessions", account, "")[1]["data"]["token"]
+    assert service.handle("DELETE", "/users/me", None, f"Bearer {token3}")[0] == 200
+    assert service.handle("GET", "/texts", None, f"Bearer {token3}")[0] == 401  # 注销能够撤销令牌
