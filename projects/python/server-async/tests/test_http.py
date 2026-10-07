@@ -35,6 +35,8 @@ async def test_http_routes(client: AsyncClient) -> None:
     assert (await client.get("/ping")).status_code == 200
     response = await client.post("/users", json={"username": "alice", "password": "password1"})
     assert response.status_code == 201
+    response = await client.post("/users", json={"username": "alice", "password": "password1"})
+    assert response.status_code == 409
     response = await client.post("/sessions", json={"username": "alice", "password": "password1"})
     token = response.json()["data"]["token"]  # 从响应JSON取token
     assert (
